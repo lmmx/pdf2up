@@ -1,7 +1,6 @@
 from pathlib import Path
 from tqdm import tqdm
 from sys import stderr
-from imageio import imread, imwrite
 from argparse import ArgumentParser
 from subprocess import call
 from pdf2image import convert_from_path
