@@ -18,14 +18,16 @@ box = arg_l.box
 if box:
     bsize = len(box)
     if bsize == 1:
-        [l] = [r] = [t] = [b] = box
+        [l] = [t] = [r] = [b] = box
     elif bsize == 2:
         l,t = box
         r,b = l,t
     elif bsize == 4:
-        l,r,t,b = box
+        l,t,r,b = box
     else:
-        raise parser.error(f"Got {bsize} values for L,R,T,B crop box (expected 1, 2, or 4)")
+        raise parser.error(f"Got {bsize} values for L,T,R,B crop box (expected 1, 2, or 4)")
+
+breakpoint()
 
 input_pdf = Path(arg_l.input).absolute()
 if not input_pdf.suffix == ".pdf":
@@ -61,7 +63,8 @@ for page_pair in tqdm(ichunked(pdf_pages_lim, 2), total=len(pdf_pages_lim) // 2)
     two_up.paste(p2, (p1.width, 0))
     if box:
         # Additional crop
-        two_up = two_up.crop((l, t, two_up.width - r, two_up.height - b))
+        w, h = combined_shape
+        two_up = two_up.crop((l, t, w - r, h - b))
     out_png = input_pdf.parent / f"{input_pdf.stem}_{i}.png"
     two_up.save(out_png)
     i += 1
