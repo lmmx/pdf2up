@@ -27,8 +27,6 @@ if box:
     else:
         raise parser.error(f"Got {bsize} values for L,T,R,B crop box (expected 1, 2, or 4)")
 
-breakpoint()
-
 input_pdf = Path(arg_l.input).absolute()
 if not input_pdf.suffix == ".pdf":
     raise ValueError(f"'{input_pdf}' does not have a PDF suffix")
