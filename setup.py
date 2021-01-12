@@ -18,7 +18,7 @@ setup(
     author_email="louismmx@gmail.com",
     description=(
         "A small utility to generate fairly high resolution preview images of PDFs"
-        "suitable for viewing or sharing to social media"
+        " suitable for viewing or sharing to social media"
     ),
     license="MIT License",
     long_description=long_description,
