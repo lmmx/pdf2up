@@ -9,10 +9,23 @@ from PIL import Image
 
 parser = ArgumentParser()
 parser.add_argument("input")
+parser.add_argument("-b", "--box", type=int, nargs="+")
 
 pdf_crop_margins = "pdf-crop-margins"
 
 arg_l = parser.parse_args()
+box = arg_l.box
+if box:
+    bsize = len(box)
+    if bsize == 1:
+        [l] = [r] = [t] = [b] = box
+    elif bsize == 2:
+        l,t = box
+        r,b = l,t
+    elif bsize == 4:
+        l,r,t,b = box
+    else:
+        raise parser.error(f"Got {bsize} values for L,R,T,B crop box (expected 1, 2, or 4)")
 
 input_pdf = Path(arg_l.input).absolute()
 if not input_pdf.suffix == ".pdf":
@@ -46,6 +59,9 @@ for page_pair in tqdm(ichunked(pdf_pages_lim, 2), total=len(pdf_pages_lim) // 2)
     two_up = Image.new('RGB', combined_shape)
     two_up.paste(p1, (0,0))
     two_up.paste(p2, (p1.width, 0))
+    if box:
+        # Additional crop
+        two_up = two_up.crop((l, t, two_up.width - r, two_up.height - b))
     out_png = input_pdf.parent / f"{input_pdf.stem}_{i}.png"
     two_up.save(out_png)
     i += 1
