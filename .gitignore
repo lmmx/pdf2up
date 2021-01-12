@@ -1,4 +1,9 @@
 *.swp
 *.swo
 *.pdf
+build
 pdfs/
+dist
+*.egg-info
+version.py
+.eggs

@@ -4,3 +4,4 @@ pdf2image
 PyPDF2
 more_itertools
 tqdm
+argcomplete
