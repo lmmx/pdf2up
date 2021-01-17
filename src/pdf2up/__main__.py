@@ -13,6 +13,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("input")
     parser.add_argument("-b", "--box", type=int, nargs="+")
+    parser.add_argument("--all", action="store_true")
     argcomplete.autocomplete(parser)
 
     pdf_crop_margins = "pdf-crop-margins"
@@ -41,8 +42,14 @@ def main():
 
     call([pdf_crop_margins, "-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)])
 
-    page_limit = 8
     pdf_pages = convert_from_path(crop_pdf_dest)
+    if arg_l.all:
+        # Technically not all since any odd last one out is skipped
+        page_limit = len(pdf_pages) - (len(pdf_pages) % 2)
+        max_i_len = len(str(page_limit))
+    else:
+        page_limit = 8
+        max_i_len = 1
     i = 0
     pdf_pages_lim = pdf_pages[:page_limit]
     for page_pair in tqdm(ichunked(pdf_pages_lim, 2), total=len(pdf_pages_lim) // 2):
@@ -63,7 +70,8 @@ def main():
             # Additional crop
             w, h = combined_shape
             two_up = two_up.crop((l, t, w - r, h - b))
-        out_png = input_pdf.parent / f"{input_pdf.stem}_{i}.png"
+        i_str = str(i).zfill(max_i_len)
+        out_png = input_pdf.parent / f"{input_pdf.stem}_{i_str}.png"
         two_up.save(out_png)
         i += 1
 
