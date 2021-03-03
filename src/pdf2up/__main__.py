@@ -42,7 +42,7 @@ def main():
 
     call([pdf_crop_margins, "-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)])
 
-    pdf_pages = convert_from_path(crop_pdf_dest)
+    pdf_pages = convert_from_path(crop_pdf_dest, dpi=300)
     if arg_l.all:
         # Technically not all since any odd last one out is skipped
         page_limit = len(pdf_pages) - (len(pdf_pages) % 2)
