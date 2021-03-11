@@ -14,6 +14,7 @@ def main():
     parser.add_argument("input")
     parser.add_argument("-b", "--box", type=int, nargs="+")
     parser.add_argument("--all", action="store_true")
+    parser.add_argument("-s", "--skip", type=int)
     argcomplete.autocomplete(parser)
 
     pdf_crop_margins = "pdf-crop-margins"
@@ -43,6 +44,10 @@ def main():
     call([pdf_crop_margins, "-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)])
 
     pdf_pages = convert_from_path(crop_pdf_dest, dpi=300)
+    if arg_l.skip:
+        pdf_pages = pdf_pages[arg_l.skip:]
+        if len(pdf_pages) < 1:
+            raise ValueError(f"Invalid number of pages to skip ({len(pdf_pages)=})")
     if arg_l.all:
         # Technically not all since any odd last one out is skipped
         page_limit = len(pdf_pages) - (len(pdf_pages) % 2)
