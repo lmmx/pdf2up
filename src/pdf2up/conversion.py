@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from subprocess import call
 
@@ -10,12 +12,13 @@ from .console_log import Console
 
 logger = Console().logger
 
+
 def pdf2png(
     input_file: str,
     box: int,
     all_pages: bool,
     skip: bool,
-) -> None:
+) -> list[Path]:
     if box:
         bsize = len(box)
         if bsize == 1:
@@ -53,12 +56,11 @@ def pdf2png(
         max_i_len = 1
     i = 0
     pdf_pages_lim = pdf_pages[:page_limit]
+    png_out_paths = []
     for page_pair in tqdm(ichunked(pdf_pages_lim, 2), total=len(pdf_pages_lim) // 2):
         iter_size = len(pdf_pages_lim[(i * 2) : (i + 1) * 2])
         if iter_size == 1:
-            logger.info(
-                f"Stopped ahead of iteration {i+1} to avoid unpaired page"
-            )
+            logger.info(f"Stopped ahead of iteration {i+1} to avoid unpaired page")
             continue
         p1, p2 = page_pair
         if not p1.height == p2.height:
@@ -74,5 +76,6 @@ def pdf2png(
         i_str = str(i).zfill(max_i_len)
         out_png = input_pdf.parent / f"{input_pdf.stem}_{i_str}.png"
         two_up.save(out_png)
+        png_out_paths.append(out_png)
         i += 1
-    return
+    return png_out_paths
