@@ -18,6 +18,7 @@ def pdf2png(
     box: int,
     all_pages: bool,
     skip: bool,
+    pdf_crop_margins: str = "pdf-crop-margins",
 ) -> list[Path]:
     if box:
         bsize = len(box)
@@ -39,7 +40,6 @@ def pdf2png(
     crop_suffix = "_cropped"
     crop_pdf_dest = input_pdf.parent / f"{input_pdf.stem}{crop_suffix}.pdf"
 
-    pdf_crop_margins = "pdf-crop-margins"
     call([pdf_crop_margins, "-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)])
 
     pdf_pages = convert_from_path(crop_pdf_dest, dpi=300)
