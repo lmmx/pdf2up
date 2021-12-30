@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from subprocess import call
 
 from more_itertools import ichunked
 from pdf2image import convert_from_path
