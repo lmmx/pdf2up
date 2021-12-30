@@ -11,9 +11,8 @@ class Pdf2upParser(ArgumentParser):
         (["-b", "--box"], {"type": int, "nargs": "+"}),
         (["--all"], {"dest": "all_pages", "action": "store_true"}),
         (["-s", "--skip"], {"type": int}),
-        (["--pdf-crop-margins"], {"type": int}),
     ]
-    kwarg_names: list[str] = "input_file box all_pages skip pdf_crop_margins".split()
+    kwarg_names: list[str] = "input_file box all_pages skip".split()
 
     def __init__(self):
         super().__init__()

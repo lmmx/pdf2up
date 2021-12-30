@@ -5,6 +5,7 @@ from subprocess import call
 
 from more_itertools import ichunked
 from pdf2image import convert_from_path
+from pdfCropMargins import pdfCropMargins
 from PIL import Image
 from tqdm import tqdm
 
@@ -18,7 +19,6 @@ def pdf2png(
     box: int,
     all_pages: bool,
     skip: bool,
-    pdf_crop_margins: str = "pdf-crop-margins",
 ) -> list[Path]:
     if box:
         bsize = len(box)
@@ -40,7 +40,10 @@ def pdf2png(
     crop_suffix = "_cropped"
     crop_pdf_dest = input_pdf.parent / f"{input_pdf.stem}{crop_suffix}.pdf"
 
-    call([pdf_crop_margins, "-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)])
+    pcm_argv = ["-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)]
+    exit_code, pcm_o, pcm_e = pdfCropMargins.crop(argv_list=pcm_argv, string_io=True)
+    if exit_code:
+        raise ValueError(f"pdfCropMargins failed: {pcm_o} -- {pcm_e}")
 
     pdf_pages = convert_from_path(crop_pdf_dest, dpi=300)
     if skip:
