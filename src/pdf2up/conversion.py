@@ -37,8 +37,6 @@ class ConvertPdf2Png:
     crop_suffix: str = "_cropped"
     imaging_dpi: int = 300
     default_n_pages: int = 4 # number of pages to paste `n_up` if `all_pages` is False
-    default_page_limit = n_up * default_n_pages
-    page_limit: int = default_page_limit
 
     def __post_init__(self):
         self.validate_pdf_suffix()
@@ -46,6 +44,8 @@ class ConvertPdf2Png:
         if self.all_pages:
             # round number of pages down to nearest `n_up` (default: 2)
             self.page_limit = len(self.pdf_pages) - (len(self.pdf_pages) % self.n_up)
+        else:
+            self.page_limit: int = self.n_up * self.default_n_pages
         self.max_i_len: int = len(str(self.page_limit))
 
     def crop_and_convert(self) -> None:
@@ -80,7 +80,9 @@ class ConvertPdf2Png:
         p_end = p_start + self.n_up
         iter_size = len(self.pdf_pages_lim[p_start:p_end])
         if iter_size < self.n_up:
-            logger.info(f"Stopped ahead of iteration to avoid unpaired page ({iter_size=})")
+            debug_msg = f"({iter_size=}, {self.n_up=})"
+            logger.info(f"Stopped iteration early to avoid unpaired page {debug_msg}")
+            breakpoint()
         else:
             if not (set(img.height for img in page_pair)):
                 err_msg = f"Images are not same size, can't stack {self.n_up}-up"
