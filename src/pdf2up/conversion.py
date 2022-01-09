@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 
 from pathlib import Path
 
@@ -12,72 +13,138 @@ from .console_log import Console
 
 logger = Console().logger
 
-
 def pdf2png(
     input_file: str,
-    box: int,
-    all_pages: bool,
-    skip: bool,
+    box: list[int],
+    all_pages: bool, # Technically not all, since any odd last one out is skipped
+    skip: int | None,
+    n_up: int = 3,
 ) -> list[Path]:
-    if box:
-        bsize = len(box)
-        if bsize == 1:
-            [l] = [t] = [r] = [b] = box
-        elif bsize == 2:
-            l, t = box
-            r, b = l, t
-        elif bsize == 4:
-            l, t, r, b = box
+    p2p = ConvertPdf2Png(
+        input_file=input_file, box=box, all_pages=all_pages, skip=skip, n_up=n_up,
+    )
+    p2p.crop_and_convert()
+    return p2p.png_out_paths
+
+@dataclass
+class ConvertPdf2Png:
+    input_file: str
+    box: list[int]
+    all_pages: bool # Technically not all, since any odd last one out is skipped
+    skip: int | None
+    n_up: int = 2
+    # The rest are not intended to be set in the CLI but can be used if called directly
+    crop_suffix: str = "_cropped"
+    imaging_dpi: int = 300
+    default_n_pages: int = 4 # number of pages to paste `n_up` if `all_pages` is False
+    default_page_limit = n_up * default_n_pages
+    page_limit: int = default_page_limit
+
+    def __post_init__(self):
+        self.validate_pdf_suffix()
+        self.validate_box_size()
+        if self.all_pages:
+            # round number of pages down to nearest `n_up` (default: 2)
+            self.page_limit = len(self.pdf_pages) - (len(self.pdf_pages) % self.n_up)
+        self.max_i_len: int = len(str(self.page_limit))
+
+    def crop_and_convert(self) -> None:
+        self.crop()
+        self.set_pdf_pages()
+        paired_page_range = ichunked(self.pdf_pages_lim, self.n_up)
+        for i, pp_islice in enumerate(tqdm(paired_page_range, total=self.pp_total)):
+            self.process_page_pair(page_pair=tuple(pp_islice), page_pair_idx=i)
+        return
+
+    def crop(self) -> None:
+        pcm_argv = ["-s", "-u", str(self.input_pdf), "-o", str(self.crop_pdf_dest)]
+        exit_code, pcm_o, pcm_e = pdfCropMargins.crop(
+            argv_list=pcm_argv, string_io=True
+        )
+        if exit_code:
+            raise ValueError(f"pdfCropMargins failed: {pcm_o} -- {pcm_e}")
+        return
+    
+    def set_pdf_pages(self) -> None:
+        pages: list[Image] = convert_from_path(self.crop_pdf_dest, dpi=self.imaging_dpi)
+        self._pdf_pages = pages[self.skip:]
+        if len(self._pdf_pages) < 1:
+            raise ValueError(f"Invalid # of pages to skip: {len(pages)=}, {self.skip=}")
+        self.pdf_pages_lim = self.pdf_pages[:self.page_limit]
+        self.pp_total = len(self.pdf_pages_lim) // self.n_up
+        self.png_out_paths = list(map(self.png_path, range(self.pp_total)))
+        return
+
+    def process_page_pair(self, page_pair: tuple[Image, ...], page_pair_idx: int) -> None:
+        p_start = page_pair_idx * self.n_up
+        p_end = p_start + self.n_up
+        iter_size = len(self.pdf_pages_lim[p_start:p_end])
+        if iter_size < self.n_up:
+            logger.info(f"Stopped ahead of iteration to avoid unpaired page ({iter_size=})")
         else:
-            raise parser.error(
-                f"Got {bsize} values for L,T,R,B crop box (expected 1, 2, or 4)"
+            if not (set(img.height for img in page_pair)):
+                err_msg = f"Images are not same size, can't stack {self.n_up}-up"
+                raise NotImplementedError(err_msg)
+            p1, *p_rest = page_pair
+            total_width = sum(p.width for p in page_pair)
+            combined_shape = (total_width, p1.height)
+            paste_up = Image.new("RGB", combined_shape)
+            paste_up.paste(p1, (0, 0))
+            prev_width = p1.width
+            for p_n in p_rest:
+                paste_up.paste(p_n, (prev_width, 0))
+                prev_width += p1.width
+            if self.box:
+                # Additional crop
+                l, t, r, b = self.box_dims_ltrb()
+                w, h = combined_shape
+                paste_up = paste_up.crop((l, t, w - r, h - b))
+            out_png = self.png_path(page_pair_idx=page_pair_idx)
+            paste_up.save(out_png)
+        return
+
+    def png_path(self, page_pair_idx: int) -> Path:
+        return self.input_pdf.parent / self.png_filename(page_pair_idx=page_pair_idx)
+
+    def png_filename(self, page_pair_idx: int) -> str:
+        return f"{self.input_pdf.stem}_{str(page_pair_idx).zfill(self.max_i_len)}.png"
+
+    @property
+    def pdf_pages(self) -> list[...]:
+        if not hasattr(self, "_pdf_pages"):
+            err_msg = "pdf_pages not set: did you forget to call `crop_and_convert()`?"
+            raise AttributeError(err_msg)
+        return self._pdf_pages
+
+    @property
+    def input_pdf(self) -> Path:
+        return Path(self.input_file).absolute()
+
+    @property
+    def crop_pdf_dest(self) -> Path:
+        return self.input_pdf.parent / f"{self.input_pdf.stem}{self.crop_suffix}.pdf"
+
+    def validate_box_size(self) -> None:
+        if self.box is not None and not self.has_valid_box_size:
+            raise ValueError(
+                f"Got {len(self.box)} values for L,T,R,B crop box (expected 1, 2, or 4)"
             )
 
-    input_pdf = Path(input_file).absolute()
-    if not input_pdf.suffix == ".pdf":
-        raise ValueError(f"'{input_pdf}' does not have a PDF suffix")
-    crop_suffix = "_cropped"
-    crop_pdf_dest = input_pdf.parent / f"{input_pdf.stem}{crop_suffix}.pdf"
+    def validate_pdf_suffix(self) -> None:
+        if self.input_pdf.suffix != ".pdf":
+            raise ValueError(f"'{self.input_pdf}' does not have a PDF suffix")
 
-    pcm_argv = ["-s", "-u", str(input_pdf), "-o", str(crop_pdf_dest)]
-    exit_code, pcm_o, pcm_e = pdfCropMargins.crop(argv_list=pcm_argv, string_io=True)
-    if exit_code:
-        raise ValueError(f"pdfCropMargins failed: {pcm_o} -- {pcm_e}")
+    @property
+    def has_valid_box_size(self) -> bool:
+        return len(self.box) in [1,2,4] # box must be specified as 1, 2, or all 4 sides
 
-    pdf_pages = convert_from_path(crop_pdf_dest, dpi=300)
-    if skip:
-        pdf_pages = pdf_pages[skip:]
-        if len(pdf_pages) < 1:
-            raise ValueError(f"Invalid number of pages to skip ({len(pdf_pages)=})")
-    if all_pages:
-        # Technically not all since any odd last one out is skipped
-        page_limit = len(pdf_pages) - (len(pdf_pages) % 2)
-        max_i_len = len(str(page_limit))
-    else:
-        page_limit = 8
-        max_i_len = 1
-    i = 0
-    pdf_pages_lim = pdf_pages[:page_limit]
-    png_out_paths = []
-    for page_pair in tqdm(ichunked(pdf_pages_lim, 2), total=len(pdf_pages_lim) // 2):
-        iter_size = len(pdf_pages_lim[(i * 2) : (i + 1) * 2])
-        if iter_size == 1:
-            logger.info(f"Stopped ahead of iteration {i+1} to avoid unpaired page")
-            continue
-        p1, p2 = page_pair
-        if not p1.height == p2.height:
-            raise NotImplementedError("Images aren't same size, can't stack 2-up")
-        combined_shape = (p1.width + p2.width, p1.height)
-        two_up = Image.new("RGB", combined_shape)
-        two_up.paste(p1, (0, 0))
-        two_up.paste(p2, (p1.width, 0))
-        if box:
-            # Additional crop
-            w, h = combined_shape
-            two_up = two_up.crop((l, t, w - r, h - b))
-        i_str = str(i).zfill(max_i_len)
-        out_png = input_pdf.parent / f"{input_pdf.stem}_{i_str}.png"
-        two_up.save(out_png)
-        png_out_paths.append(out_png)
-        i += 1
-    return png_out_paths
+    def box_dims_ltrb(self) -> tuple[int,int,int,int]:
+        bsize = len(self.box)
+        assert self.has_valid_box_size, "INVALID BOX SIZE" # Validated in __post_init__
+        if bsize == 1:
+            [l] = [t] = [r] = [b] = self.box
+        elif bsize == 2:
+            r, b = l, t = self.box
+        elif bsize == 4:
+            l, t, r, b = self.box
+        return l, t, r, b
