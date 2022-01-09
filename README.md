@@ -34,5 +34,5 @@ options:
 
 To run as a library using the [`pdf2up.conversion`](src/pdf2up/conversion.py) module:
 
-- The `pdf2png()` function gives the same interface as the CLI can be obtained using the CLI
+- The `pdf2png()` function gives the same interface as the CLI
 - The `ConvertPdf2Png` class gives access to values configured by this interface
