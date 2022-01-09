@@ -20,6 +20,7 @@ class Pdf2upParser(ArgumentParser):
         (["--all"], {"dest": "all_pages", "action": "store_true"}),
         (["-s", "--skip"], {"type": int}),
         (["-n", "--n-up"], {"type": int}),
+        (["-c", "--cores"], {"type": int}),
     ]
     kwarg_names: list[str] = "input_file box all_pages skip".split()
 
@@ -48,6 +49,7 @@ _HELP_MESSAGES = {
     "input_file": "",
     "n_up": "How many pages to 'paste' alongside onto a single page (default: 2)",
     "skip": "How many pages to skip forward from the original PDF",
+    "cores": "Maximum CPU cores to run multicore execution (default: all available cores)",
 }
 
 

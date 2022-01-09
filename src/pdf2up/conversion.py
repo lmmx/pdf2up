@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from more_itertools import ichunked
+from functools import partial
 from pdf2image import convert_from_path
 from pdfCropMargins import pdfCropMargins
 from PIL import Image
-from tqdm import tqdm
 
 from .console_log import Console
+from .batch_multiprocessing import batch_multiprocess, sequential_process
 
 logger = Console().logger
 
@@ -20,6 +21,7 @@ def pdf2png(
     all_pages: bool,  # Technically not all, since any odd last one out is skipped
     skip: int | None,
     n_up: int = 3,
+    cores: int | None = None,
 ) -> list[Path]:
     p2p = ConvertPdf2Png(
         input_file=input_file,
@@ -27,6 +29,7 @@ def pdf2png(
         all_pages=all_pages,
         skip=skip,
         n_up=n_up,
+        cores=cores,
     )
     p2p.crop_and_convert()
     return p2p.png_out_paths
@@ -39,6 +42,7 @@ class ConvertPdf2Png:
     all_pages: bool  # Technically not all, since any odd last one out is skipped
     skip: int | None
     n_up: int = 2
+    cores: int | None = None
     # The rest are not intended to be set in the CLI but can be used if called directly
     crop_suffix: str = "_cropped"
     imaging_dpi: int = 300
@@ -54,12 +58,24 @@ class ConvertPdf2Png:
             self.page_limit: int = self.n_up * self.default_n_pages
         self.max_i_len: int = len(str(self.page_limit))
 
+    @property
+    def multicore(self) -> bool:
+        return self.cores in (0, None) or self.cores > 1
+
     def crop_and_convert(self) -> None:
         self.crop()
         self.set_pdf_pages()
         paired_page_range = ichunked(self.pdf_pages_lim, self.n_up)
-        for i, pp_islice in enumerate(tqdm(paired_page_range, total=self.pp_total)):
-            self.process_page_pair(page_pair=tuple(pp_islice), pair_idx=i)
+        proc_funcs = []
+        for i, pp_islice in enumerate(paired_page_range):
+            proc_mthd = self.process_page_pair
+            proc_func = partial(proc_mthd, page_pair=tuple(pp_islice), pair_idx=i)
+            proc_funcs.append(proc_func)
+        if self.multicore:
+            n_cores_kwarg = {"n_cores": v for v in [self.cores] if v}
+            batch_multiprocess(proc_funcs, show_progress=True, **n_cores_kwarg)
+        else:
+            sequential_process(proc_funcs, show_progress=True)
         return
 
     def crop(self) -> None:
@@ -88,27 +104,11 @@ class ConvertPdf2Png:
         if iter_size < self.n_up:
             debug_msg = f"({iter_size=}, {self.n_up=})"
             logger.info(f"Stopped iteration early to avoid unpaired page {debug_msg}")
-            breakpoint()
         else:
-            if not (set(img.height for img in page_pair)):
+            if not len(set(img.height for img in page_pair)) == 1:
                 err_msg = f"Images are not same size, can't stack {self.n_up}-up"
                 raise NotImplementedError(err_msg)
-            p1, *p_rest = page_pair
-            total_width = sum(p.width for p in page_pair)
-            combined_shape = (total_width, p1.height)
-            paste_up = Image.new("RGB", combined_shape)
-            paste_up.paste(p1, (0, 0))
-            prev_width = p1.width
-            for p_n in p_rest:
-                paste_up.paste(p_n, (prev_width, 0))
-                prev_width += p1.width
-            if self.box:
-                # Additional crop
-                l, t, r, b = self.box_dims_ltrb()
-                w, h = combined_shape
-                paste_up = paste_up.crop((l, t, w - r, h - b))
-            out_png = self.png_path(pair_idx=pair_idx)
-            paste_up.save(out_png)
+            PastePages(page_pair=page_pair, pair_idx=pair_idx, p2p=self)
         return
 
     def png_path(self, pair_idx: int) -> Path:
@@ -157,3 +157,38 @@ class ConvertPdf2Png:
         elif bsize == 4:
             l, t, r, b = self.box
         return l, t, r, b
+
+
+@dataclass
+class PastePages:
+    page_pair: tuple[Image, ...]
+    pair_idx: int
+    p2p: ConvertPdf2Png
+
+    def __post_init__(self):
+        self.p1, *self.p_rest = self.page_pair
+        self.save_to_png()
+
+    def save_to_png(self) -> None:
+        paste_up = Image.new("RGB", self.combined_shape)
+        paste_up.paste(self.p1, (0, 0))
+        prev_width = self.p1.width
+        for p_n in self.p_rest:
+            paste_up.paste(p_n, (prev_width, 0))
+            prev_width += self.p1.width
+        if self.p2p.box:
+            # Additional crop
+            l, t, r, b = self.p2p.box_dims_ltrb()
+            w, h = self.combined_shape
+            paste_up = paste_up.crop((l, t, w - r, h - b))
+        out_png = self.p2p.png_path(pair_idx=self.pair_idx)
+        paste_up.save(out_png)
+        return
+
+    @property
+    def total_width(self) -> int:
+        return sum(p.width for p in self.page_pair)
+
+    @property
+    def combined_shape(self) -> tuple[int, int]:
+        return (self.total_width, self.p1.height)
