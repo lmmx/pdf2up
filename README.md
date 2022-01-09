@@ -13,11 +13,26 @@ pip install pdf2up
 
 ## Usage
 
-Run `pdf2up input.pdf`, optionally with the following flags:
+Run on the command line as `pdf2up input.pdf`, optionally with the following flags:
 
-- `-b`/`--box` to specify a crop box for each pre-cropped 2-up page image
-  - 4 values: `-b 1 2 3 4` gets read as `left, top, right, bottom`
-  - 2 values: `-b 1 2` gets repeated as `-b 1 2 1 2`
-  - 1 value: `-b 1` = `-b 1 1 1 1`
+```
+usage: pdf2up [-h] [-b BOX [BOX ...]] [--all] [-s SKIP] [-n N_UP] input
 
-- `--all` to override the default of 8 pages (4 images, each 2-up)
+positional arguments:
+  input
+
+options:
+  -h, --help            show this help message and exit
+  -b BOX [BOX ...], --box BOX [BOX ...]
+                        to specify a crop box for each pre-cropped 2-up page image, either
+                        as 1 side, 2 sides (L/R, T/B), or 4 sides (L, T, R, B)
+  --all                 override the default of only producing 4 images (which for default
+                        2-up gives 8 pages as 4 PNGs)
+  -s SKIP, --skip SKIP  How many pages to skip forward from the original PDF
+  -n N_UP, --n-up N_UP  How many pages to 'paste' alongside onto a single page (default: 2)
+```
+
+To run as a library using the [`pdf2up.conversion`](src/pdf2up/conversion.py) module:
+
+- The `pdf2png()` function gives the same interface as the CLI can be obtained using the CLI
+- The `ConvertPdf2Png` class gives access to values configured by this interface

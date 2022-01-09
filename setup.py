@@ -6,11 +6,14 @@ with open("README.md", "r") as fh:
 with open("requirements.txt", "r") as fh:
     reqs = fh.read().splitlines()
 
+
 def local_scheme(version):
     return ""
 
+
 def version_scheme(version):
     return version.tag.base_version
+
 
 setup(
     name="pdf2up",
@@ -32,7 +35,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Intended Audience :: Developers",
     ],
-    include_package_data=True, # no package data yet but no problem
+    include_package_data=True,  # no package data yet but no problem
     use_scm_version={
         "write_to": "version.py",
         "version_scheme": version_scheme,
