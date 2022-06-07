@@ -1,16 +1,16 @@
 from __future__ import annotations
-from dataclasses import dataclass
 
+from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 from more_itertools import ichunked
-from functools import partial
 from pdf2image import convert_from_path
 from pdfCropMargins import pdfCropMargins
 from PIL import Image
 
-from .console_log import Console
 from .batch_multiprocessing import batch_multiprocess, sequential_process
+from .console_log import Console
 
 logger = Console().logger
 
@@ -20,7 +20,7 @@ def pdf2png(
     box: list[int],
     all_pages: bool,  # Technically not all, since any odd last one out is skipped
     skip: int | None,
-    n_up: int = 3,
+    n_up: int = 2,
     cores: int | None = None,
 ) -> list[Path]:
     p2p = ConvertPdf2Png(

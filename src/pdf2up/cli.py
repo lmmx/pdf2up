@@ -22,7 +22,6 @@ class Pdf2upParser(ArgumentParser):
         (["-n", "--n-up"], {"type": int}),
         (["-c", "--cores"], {"type": int}),
     ]
-    kwarg_names: list[str] = "input_file box all_pages skip".split()
 
     def __init__(self):
         super().__init__()
